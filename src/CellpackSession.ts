@@ -1,7 +1,9 @@
 import * as Lodash from "lodash"
 import * as Promise from "bluebird"
+import * as Uid from "uid-safe"
+import * as Moment from "moment"
 //
-import { Cellpack, Connection } from "microb"
+import { Cellpack, Connection, Session, Cookie } from "microb"
 //
 import * as Memcached from "memcached"
 
@@ -10,35 +12,90 @@ export default class CellpackSession extends Cellpack {
     private store: any
 
     init(){
-        this.config = this.environment.get("cellpacks")["cellpack-restify"]
+        this.config = this.environment.get("cellpacks")["cellpack-session"]
         // connection to store
         if(!Lodash.isUndefined(this.config.store)){
             // todo types
             this.initStore()
         }
-
         return Promise.resolve()
     }
 
     private initStore(){
-        this.store = new Memcached(this.config.store.options.server)
+        this.store = new Memcached(`${this.config.store.options.server}:${this.config.store.options.port}`,{
+            timeout: 15000,
+            idle: 30000
+        })
     }
 
-    request(connection: Connection){
-        if(connection.request.cookies.has(this.config.name)){
-            let session_cookie = connection.request.cookies.get(this.config.name)
+    getSession(connection: Connection, name: string): Promise<Session> {
+        name = (Lodash.isUndefined(name) ? this.config.name : `${this.config.name}_${name}`)
+        if(connection.request.cookies.has(name)){
+            let sessionCookie = connection.request.cookies.get(name)
+            if(Lodash.isUndefined(this.store)) this.initStore() // TODO: promise?
+            return new Promise<Session>((resolve, reject) => {
+                this.store.get(sessionCookie, (err: any, data: any) => {
+                    if(err) return reject(err)
+                    else {
+                        if(!Lodash.isUndefined(data)){
+                            let session = (new Session(data.params))
+                            .setExpires(data.expires)
+                            .setPath(data.path)
+                            .setDomain(data.domain)
+                            .setSecure(data.secure)
+                            .setHttponly(data.httponly)
 
-            if(Lodash.isUndefined(this.store)) this.initStore() // TODO: promise
-
-            return new Promise<boolean>((resolve, reject) => {
-                this.store.touch(session_cookie, this.config.expires)
-                this.store.get(session_cookie, (err: any, data: any) => {
-
-                    connection.environment.set('session', data)
-
-                    return resolve(true)
+                            let exp = session.getExpiresUnix() || this.config.expires
+                            this.store.touch(sessionCookie,exp,(err: Error) => {
+                                this.setSessionCookie(sessionCookie,connection,session)
+                                return resolve(session)
+                            })
+                        } else return resolve(new Session())
+                    }
                 })
             })
-        } else return Promise.resolve(true)
+        } else return Promise.resolve<Session>(new Session())
+    }
+
+    setSession(connection: Connection, session: Session): Promise<Session> {
+        return new Promise((resolve,reject) => {
+            if(!connection.request.cookies.has(this.config.name)){
+                this.generateSid().then((sid) => {
+                    this.setSessionCookie(sid,connection,session)
+                    resolve(sid)
+                })
+            } else return resolve(connection.request.cookies.get(this.config.name))
+        }).then((sid) => {
+            if(Lodash.isUndefined(this.store)) this.initStore()
+            return new Promise<Session>((resolve,reject) => {
+                let exp = session.getExpiresUnix() || this.config.expires
+                this.store.set(sid,session,exp,(err: Error) => {
+                    if(err !== undefined){
+                        this.transmitter.emit("log.cellpack.session",`\tError in setSession(): ${err}`)
+                        reject(err)
+                    } else resolve(session)
+                })
+            })
+        })
+    }
+
+    private setSessionCookie(sid: string, connection: Connection, session: Session){
+        connection.response.setCookie(new Cookie(
+            this.config.name,
+            sid,
+            session.getExpires() || this.config.expires,
+            session.getPath() || "/",
+            session.getDomain() || "",
+            session.isSecure() || false,
+            session.isHttponly() || true
+        ))
+    }
+
+    generateSid(): Promise<string> {
+        return new Promise<string>((resolve,reject) => {
+            Uid(24).then((uid) => {
+                resolve(uid)
+            })
+        })
     }
 }
