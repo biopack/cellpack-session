@@ -1,6 +1,6 @@
 {
   "name": "cellpack-session",
-  "version": "1.0.0-alpha.5",
+  "version": "1.0.0-alpha.6",
   "description": "Session management for Microb web framework",
   "keywords": [
       "Microb","mvc","framework","web","session"
@@ -39,6 +39,6 @@
       "gulp-typescript": "^3.1.3",
       "typescript": "^2.0.9",
       "merge2": "^1.0.2",
-      "microb": "1.0.0-alpha.5"
+      "microb": "1.0.0-alpha.12"
   }
 }

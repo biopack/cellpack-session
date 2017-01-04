@@ -80,15 +80,31 @@ export default class CellpackSession extends Cellpack {
     }
 
     private setSessionCookie(sid: string, connection: Connection, session: Session){
-        connection.response.setCookie(new Cookie(
-            this.config.name,
-            sid,
-            session.getExpires() || this.config.expires,
-            session.getPath() || "/",
-            session.getDomain() || "",
-            session.isSecure() || false,
-            session.isHttponly() || true
-        ))
+        let domain = session.getDomain()
+
+        if(Lodash.isArray(domain)){
+            (<Array<string>>domain).forEach((dom: string, index: number, arr: Array<string>) => {
+                connection.response.setCookie(new Cookie(
+                    this.config.name,
+                    sid,
+                    session.getExpires() || this.config.expires,
+                    session.getPath() || "/",
+                    dom || "",
+                    session.isSecure() || false,
+                    session.isHttponly() || true
+                ))
+            })
+        } else {
+            connection.response.setCookie(new Cookie(
+                this.config.name,
+                sid,
+                session.getExpires() || this.config.expires,
+                session.getPath() || "/",
+                domain || "/",
+                session.isSecure() || false,
+                session.isHttponly() || true
+            ))
+        }
     }
 
     generateSid(): Promise<string> {
