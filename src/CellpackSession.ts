@@ -80,8 +80,8 @@ export default class CellpackSession extends Cellpack {
     }
 
     private setSessionCookie(sid: string, connection: Connection, session: Session){
+        if(this.environment.get("debug")) this.transmitter.emit("log.cellpack.session",`Set session cookie: ${sid}`)
         let domain = session.getDomain()
-
         if(Lodash.isArray(domain)){
             (<Array<string>>domain).forEach((dom: string, index: number, arr: Array<string>) => {
                 connection.response.setCookie(new Cookie(
