@@ -1,6 +1,6 @@
 {
   "name": "cellpack-session",
-  "version": "1.0.0-alpha.7",
+  "version": "1.0.0-alpha.8",
   "description": "Session management for Microb web framework",
   "keywords": [
       "Microb","mvc","framework","web","session"

@@ -10,6 +10,7 @@ import * as Memcached from "memcached"
 export default class CellpackSession extends Cellpack {
 
     private store: any
+    private sid: string
 
     init(){
         this.config = this.environment.get("cellpacks")["cellpack-session"]
@@ -32,6 +33,7 @@ export default class CellpackSession extends Cellpack {
         name = (Lodash.isUndefined(name) ? this.config.name : `${this.config.name}_${name}`)
         if(connection.request.cookies.has(name)){
             let sessionCookie = connection.request.cookies.get(name)
+            this.sid = sessionCookie
             if(Lodash.isUndefined(this.store)) this.initStore() // TODO: promise?
             return new Promise<Session>((resolve, reject) => {
                 this.store.get(sessionCookie, (err: any, data: any) => {
@@ -107,9 +109,14 @@ export default class CellpackSession extends Cellpack {
         }
     }
 
+    getSid(): string {
+        return this.sid
+    }
+
     generateSid(): Promise<string> {
         return new Promise<string>((resolve,reject) => {
             Uid(24).then((uid) => {
+                this.sid = uid
                 resolve(uid)
             })
         })
